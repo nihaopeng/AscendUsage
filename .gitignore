@@ -1,0 +1,7 @@
+*.whl
+*.so
+*.o
+*.a
+asc-devkit/
+build/
+.vscode/

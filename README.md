@@ -6,21 +6,20 @@
 
 ```
 ├── demos/                    # 示例代码
-│   ├── framework/           # PyTorch自定义算子框架示例
-│   │   ├── run_ops.py      # 向量加法算子性能测试
-│   │   ├── README.md       # 安装和运行说明
-│   │   └── build/          # 构建输出
-│   ├── exe/                # 可执行文件示例
-│   └── proj/               # CMake项目示例
-├── operators/              # 自定义算子实现
-│   └── gemm/              # 矩阵乘法算子
-│       ├── csrc/          # C++源码
+│   ├── framework/            # PyTorch自定义算子框架示例
+│   │   ├── run_ops.py        # 向量加法算子性能测试
+│   │   ├── README.md         # 安装和运行说明
+│   │   └── build/            # 构建输出
+│   ├── exe/                  # 可执行文件示例
+│   └── proj/                 # CMake项目示例
+├── operators/                # 自定义算子实现
+│   └── gemm/                 # 矩阵乘法算子
+│       ├── csrc/             # C++源码
 │       │   ├── ascend_interface.cpp
-│       │   └── kernels/   # 内核实现
-│       └── run_ops.py     # GEMM性能测试
-├── docs/                   # 文档
-│   └── README.md          # 昇腾问题收集
-└── .vscode/               # VSCode配置
+│       │   └── kernels/      # 内核实现
+│       └── run_ops.py        # GEMM性能测试
+├── docs/                     # 文档
+└── README.md             # 昇腾问题收集
 ```
 
 ## 快速开始

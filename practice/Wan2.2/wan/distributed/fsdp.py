@@ -20,6 +20,8 @@ def shard_model(
     sync_module_states=True,
     use_lora=False
 ):
+    print("Sharding model with FSDP...")
+    model = model.to(torch.bfloat16)
     model = FSDP(
         module=model,
         process_group=process_group,
@@ -33,6 +35,7 @@ def shard_model(
         device_id=device_id,
         sync_module_states=sync_module_states,
         use_orig_params=True if use_lora else False)
+    print("Model sharded successfully.")
     return model
 
 

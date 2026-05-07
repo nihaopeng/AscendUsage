@@ -51,32 +51,30 @@ def flash_attention(
     """
     half_dtypes = (torch.float16, torch.bfloat16)
     assert dtype in half_dtypes
-    # assert q.device.type == 'cuda' and q.size(-1) <= 256
     assert q.device.type in ['cuda', 'npu'] and q.size(-1) <= 256
-    # 2. 针对 NPU 的分支处理
     if q.device.type == 'npu':
         import torch.nn.functional as F
-        # Wan2.2 输入维度: [B, L, N, C]
-        # F.scaled_dot_product_attention 期望维度: [B, N, L, C]
-        # 调整维度顺序
+        orig_shape = q.shape
+        out_dtype = q.dtype
+        if q.dim() == 3:
+            q = q.unsqueeze(0)
+            k = k.unsqueeze(0)
+            v = v.unsqueeze(0)
         q_npu = q.transpose(1, 2)
         k_npu = k.transpose(1, 2)
         v_npu = v.transpose(1, 2)
-        # 如果提供了 softmax_scale，手动应用它
-        # 因为 F.scaled_dot_product_attention 默认使用 1/sqrt(d)
-        # 如果项目传入了特定的 scale，这里需要处理一下
         scale = softmax_scale if softmax_scale is not None else (q.size(-1) ** -0.5)
-        # 执行计算
         out = F.scaled_dot_product_attention(
             q_npu, k_npu, v_npu, 
             attn_mask=None,
-            dropout_p=dropout_p, 
+            dropout_p=dropout_p,
             is_causal=causal,
             scale=scale
         )
-        # 将结果从 [B, N, L, C] 转回 [B, L, N, C]
-        return out.transpose(1, 2).to(q.dtype)
-
+        out = out.transpose(1, 2)
+        if len(orig_shape) == 3:
+            out = out.squeeze(0)
+        return out.to(out_dtype)
     # params
     b, lq, lk, out_dtype = q.size(0), q.size(1), k.size(1), q.dtype
 
@@ -113,7 +111,7 @@ def flash_attention(
         warnings.warn(
             'Flash attention 3 is not available, use flash attention 2 instead.'
         )
-
+    
     # apply attention
     if (version is None or version == 3) and FLASH_ATTN_3_AVAILABLE:
         # Note: dropout_p, window_size are not supported in FA3 now.

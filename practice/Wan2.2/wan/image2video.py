@@ -85,7 +85,6 @@ class WanI2V:
             self.init_on_cpu = False
 
         shard_fn = partial(shard_model, device_id=device_id)
-        logging.info(f"Initializing T5EncoderModel with FSDP: {t5_fsdp}, on CPU: {t5_cpu}")
         self.text_encoder = T5EncoderModel(
             text_len=config.text_len,
             dtype=config.t5_dtype,
@@ -97,24 +96,24 @@ class WanI2V:
 
         self.vae_stride = config.vae_stride
         self.patch_size = config.patch_size
-        logging.info(f"Initializing Wan2_1_VAE with checkpoint from {checkpoint_dir}")
         self.vae = Wan2_1_VAE(
             vae_pth=os.path.join(checkpoint_dir, config.vae_checkpoint),
             device=self.device)
 
-        logging.info(f"Creating WanModel from {checkpoint_dir},[low_noise_model]")
+        logging.info(f"Creating WanModel from {checkpoint_dir}")
         self.low_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.low_noise_checkpoint)
+        print(f"[rank:{self.rank}] Configuring low noise model...")
         self.low_noise_model = self._configure_model(
             model=self.low_noise_model,
             use_sp=use_sp,
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype)
-        
-        logging.info(f"Creating WanModel from {checkpoint_dir},[high_noise_model]")
+
         self.high_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.high_noise_checkpoint)
+        print(f"[rank:{self.rank}] Configuring high noise model...")
         self.high_noise_model = self._configure_model(
             model=self.high_noise_model,
             use_sp=use_sp,

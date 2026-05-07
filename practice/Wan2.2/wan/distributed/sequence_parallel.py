@@ -6,18 +6,33 @@ from ..modules.model import sinusoidal_embedding_1d
 from .ulysses import distributed_attention
 from .util import gather_forward, get_rank, get_world_size
 
-
 def pad_freqs(original_tensor, target_len):
     seq_len, s1, s2 = original_tensor.shape
     pad_size = target_len - seq_len
+    if pad_size <= 0:
+        return original_tensor
     padding_tensor = torch.ones(
         pad_size,
         s1,
         s2,
-        dtype=original_tensor.dtype,
-        device=original_tensor.device)
+        dtype=torch.float32, 
+        device=original_tensor.device
+    )
+    padding_tensor = padding_tensor.to(original_tensor.dtype)
     padded_tensor = torch.cat([original_tensor, padding_tensor], dim=0)
     return padded_tensor
+
+# def pad_freqs(original_tensor, target_len):
+#     seq_len, s1, s2 = original_tensor.shape
+#     pad_size = target_len - seq_len
+#     padding_tensor = torch.ones(
+#         pad_size,
+#         s1,
+#         s2,
+#         dtype=original_tensor.dtype,
+#         device=original_tensor.device)
+#     padded_tensor = torch.cat([original_tensor, padding_tensor], dim=0)
+#     return padded_tensor
 
 
 @torch.amp.autocast('cuda', enabled=False)
@@ -39,6 +54,8 @@ def rope_apply(x, grid_sizes, freqs):
         # precompute multipliers
         x_i = torch.view_as_complex(x[i, :s].to(torch.float64).reshape(
             s, n, -1, 2))
+        freqs = [t.to(torch.complex64) if t.dtype == torch.complex128 else t for t in freqs]
+        f, h, w = int(f), int(h), int(w)
         freqs_i = torch.cat([
             freqs[0][:f].view(f, 1, 1, -1).expand(f, h, w, -1),
             freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
@@ -106,6 +123,10 @@ def sp_dit_forward(
             sinusoidal_embedding_1d(self.freq_dim,
                                     t).unflatten(0, (bt, seq_len)).float())
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
+        if e.dtype != torch.float32:
+            e = e.to(torch.float32)
+        if e0.dtype != torch.float32:
+            e0 = e0.to(torch.float32)
         assert e.dtype == torch.float32 and e0.dtype == torch.float32
 
     # context

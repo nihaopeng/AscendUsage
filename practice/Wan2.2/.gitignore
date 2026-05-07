@@ -5,6 +5,4 @@ tmp_examples*
 new_checkpoint*
 batch_test*
 nohup*
-decord/
-girl.jpg
-*.whl
+kernel_meta/

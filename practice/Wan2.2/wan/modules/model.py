@@ -39,9 +39,6 @@ def rope_params(max_seq_len, dim, theta=10000):
 def rope_apply(x, grid_sizes, freqs):
     n, c = x.size(2), x.size(3) // 2
 
-    if freqs.dtype == torch.complex128:
-        freqs = freqs.to(torch.complex64)
-    
     # split freqs
     freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
 
@@ -51,14 +48,16 @@ def rope_apply(x, grid_sizes, freqs):
         seq_len = f * h * w
 
         # precompute multipliers
-        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float32).reshape(
+        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float64).reshape(
             seq_len, n, -1, 2))
+        
+        freqs = [t.to(torch.complex64) if t.dtype == torch.complex128 else t for t in freqs]
+        f, h, w = int(f), int(h), int(w)
         freqs_i = torch.cat([
             freqs[0][:f].view(f, 1, 1, -1).expand(f, h, w, -1),
             freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
             freqs[2][:w].view(1, 1, w, -1).expand(f, h, w, -1)
-        ],
-                            dim=-1).reshape(seq_len, 1, -1).to(torch.complex64)
+        ],dim=-1).reshape(seq_len, 1, -1)
 
         # apply rotary embedding
         x_i = torch.view_as_real(x_i * freqs_i).flatten(2)
@@ -237,6 +236,8 @@ class WanAttentionBlock(nn.Module):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
+        if e.dtype != torch.float32:
+                e = e.to(torch.float32)
         assert e.dtype == torch.float32
         with torch.amp.autocast('cuda', dtype=torch.float32):
             e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
@@ -462,16 +463,17 @@ class WanModel(ModelMixin, ConfigMixin):
         # time embeddings
         if t.dim() == 1:
             t = t.expand(t.size(0), seq_len)
-        with torch.amp.autocast('npu', dtype=torch.float32):
+        with torch.amp.autocast('cuda', dtype=torch.float32):
             bt = t.size(0)
             t = t.flatten()
             e = self.time_embedding(
                 sinusoidal_embedding_1d(self.freq_dim,
                                         t).unflatten(0, (bt, seq_len)).float())
             e0 = self.time_projection(e).unflatten(2, (6, self.dim))
-            torch.npu.empty_cache() # clear intermediate buffers before attention to save memory
-            e = e.to(torch.float32)
-            e0 = e0.to(torch.float32)
+            if e.dtype != torch.float32:
+                e = e.to(torch.float32)
+            if e0.dtype != torch.float32:
+                e0 = e0.to(torch.float32)
             assert e.dtype == torch.float32 and e0.dtype == torch.float32
 
         # context
@@ -492,7 +494,9 @@ class WanModel(ModelMixin, ConfigMixin):
             context=context,
             context_lens=context_lens)
 
-        for block in self.blocks:
+        from tqdm import tqdm
+        for block in tqdm(self.blocks,desc=f"Processing blocks", unit="block"):
+            print(f"Processing block...")
             x = block(x, **kwargs)
 
         # head

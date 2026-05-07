@@ -1,5 +1,5 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
-from torch_npu.contrib import transfer_to_npu # 这是一个黑科技，尝试自动将 cuda 映射到 npu
+from torch_npu.contrib import transfer_to_npu
 
 import argparse
 import logging
@@ -22,6 +22,8 @@ from wan.distributed.util import init_distributed_group
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
 from wan.utils.utils import merge_video_audio, save_video, str2bool
 
+torch.npu.config.allow_internal_format = False
+torch.npu.set_compile_mode(jit_compile=False)
 
 EXAMPLE_PROMPT = {
     "t2v-A14B": {
@@ -36,7 +38,7 @@ EXAMPLE_PROMPT = {
     },
     "ti2v-5B": {
         "prompt":
-            "",
+            "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage.",
     },
     "animate-14B": {
         "prompt": "视频中的人在做动作",
@@ -233,7 +235,7 @@ def _parse_args():
     parser.add_argument(
         "--refert_num",
         type=int,
-        default=5,
+        default=77,
         help="How many frames used for temporal guidance. Recommended to be 1 or 5."
     )
     parser.add_argument(
@@ -328,7 +330,7 @@ def generate(args):
     if world_size > 1:
         torch.cuda.set_device(local_rank)
         dist.init_process_group(
-            backend="hccl",
+            backend="nccl",
             init_method="env://",
             rank=rank,
             world_size=world_size)

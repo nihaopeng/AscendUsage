@@ -12,6 +12,10 @@ i2v_A14B.update(wan_shared_cfg)
 i2v_A14B.t5_checkpoint = 'models_t5_umt5-xxl-enc-bf16.pth'
 i2v_A14B.t5_tokenizer = 'google/umt5-xxl'
 
+# lora
+i2v_A14B.low_noise_weight = 'low.safetensors'
+i2v_A14B.high_noise_weight = 'high.safetensors'
+
 # vae
 i2v_A14B.vae_checkpoint = 'Wan2.1_VAE.pth'
 i2v_A14B.vae_stride = (4, 8, 8)

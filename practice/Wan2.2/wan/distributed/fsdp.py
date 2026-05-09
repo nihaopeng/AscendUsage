@@ -1,6 +1,7 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import gc
 from functools import partial
+import logging
 
 import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -20,7 +21,6 @@ def shard_model(
     sync_module_states=True,
     use_lora=False
 ):
-    print("Sharding model with FSDP...")
     model = model.to(torch.bfloat16)
     model = FSDP(
         module=model,
@@ -35,7 +35,7 @@ def shard_model(
         device_id=device_id,
         sync_module_states=sync_module_states,
         use_orig_params=True if use_lora else False)
-    print("Model sharded successfully.")
+    logging.info(f"[rank:{device_id}]:Model sharded successfully.")
     return model
 
 

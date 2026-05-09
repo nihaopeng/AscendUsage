@@ -28,7 +28,58 @@ from .utils.fm_solvers import (
     retrieve_timesteps,
 )
 from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
+from safetensors.torch import load_file
 
+import torch
+from safetensors.torch import load_file
+
+
+def apply_lora(
+    model,
+    lora_path,
+    alpha=1.0,
+    compute_device="npu"
+):
+    lora_sd = load_file(lora_path)
+    modules = dict(model.named_modules())
+    for key in tqdm(lora_sd.keys(),desc=f"[rank:{compute_device}] apply lora"):
+        if not key.endswith("lora_A.weight"):
+            continue
+        base = key.replace(".lora_A.weight", "")
+        module_name = base.replace("diffusion_model.", "")
+        if module_name not in modules:
+            continue
+        module = modules[module_name]
+        if not hasattr(module, "weight"):
+            continue
+        weight_cpu = module.weight.data
+        # LoRA tensors -> GPU
+        A = lora_sd[key].to(
+            compute_device,
+            dtype=torch.bfloat16
+        )
+        B = lora_sd[
+            base + ".lora_B.weight"
+        ].to(
+            compute_device,
+            dtype=torch.bfloat16
+        )
+        rank = A.shape[0]
+        # GPU MATMUL
+        delta_gpu = torch.matmul(B, A)
+        delta_gpu *= alpha / rank
+        # copy back CPU
+        delta_cpu = delta_gpu.to(
+            device=weight_cpu.device,
+            dtype=weight_cpu.dtype
+        )
+        weight_cpu += delta_cpu
+        del A
+        del B
+        del delta_gpu
+        del delta_cpu
+        torch.cuda.empty_cache()
+    return model
 
 class WanI2V:
 
@@ -36,6 +87,7 @@ class WanI2V:
         self,
         config,
         checkpoint_dir,
+        lora_weight_dir=None,
         device_id=0,
         rank=0,
         t5_fsdp=False,
@@ -103,7 +155,13 @@ class WanI2V:
         logging.info(f"Creating WanModel from {checkpoint_dir}")
         self.low_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.low_noise_checkpoint)
-        print(f"[rank:{self.rank}] Configuring low noise model...")
+        logging.info(f"[rank:{self.rank}] Configuring lora low noise model...")
+        self.low_noise_model = apply_lora(
+            model=self.low_noise_model,
+            lora_path=os.path.join(lora_weight_dir, config.low_noise_weight),
+            compute_device=f"npu:{device_id}"
+        )
+        logging.info(f"[rank:{self.rank}] Configuring low noise model...")
         self.low_noise_model = self._configure_model(
             model=self.low_noise_model,
             use_sp=use_sp,
@@ -113,7 +171,13 @@ class WanI2V:
 
         self.high_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.high_noise_checkpoint)
-        print(f"[rank:{self.rank}] Configuring high noise model...")
+        logging.info(f"[rank:{self.rank}] Configuring lora high noise model...")
+        self.high_noise_model = apply_lora(
+            model=self.high_noise_model,
+            lora_path=os.path.join(lora_weight_dir, config.high_noise_weight),
+            compute_device=f"npu:{device_id}"
+        )
+        logging.info(f"[rank:{self.rank}] Configuring high noise model...")
         self.high_noise_model = self._configure_model(
             model=self.high_noise_model,
             use_sp=use_sp,

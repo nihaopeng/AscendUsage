@@ -1,7 +1,6 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 from torch_npu.contrib import transfer_to_npu
 
-import argparse
 import logging
 import os
 import sys
@@ -10,299 +9,55 @@ from datetime import datetime
 
 warnings.filterwarnings('ignore')
 
-import random
-
 import torch
+import torch_npu
 import torch.distributed as dist
 from PIL import Image
 
 import wan
-from wan.configs import MAX_AREA_CONFIGS, SIZE_CONFIGS, SUPPORTED_SIZES, WAN_CONFIGS
+from wan.configs import MAX_AREA_CONFIGS, SIZE_CONFIGS, WAN_CONFIGS
 from wan.distributed.util import init_distributed_group
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
-from wan.utils.utils import merge_video_audio, save_video, str2bool
+from wan.utils.utils import merge_video_audio, save_video
+from wan.utils.args import _parse_args
+
+
 
 torch.npu.config.allow_internal_format = False
 torch.npu.set_compile_mode(jit_compile=False)
 
-EXAMPLE_PROMPT = {
-    "t2v-A14B": {
-        "prompt":
-            "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage.",
-    },
-    "i2v-A14B": {
-        "prompt":
-            "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's intricate details and the refreshing atmosphere of the seaside.",
-        "image":
-            "examples/i2v_input.JPG",
-    },
-    "ti2v-5B": {
-        "prompt":
-            "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage.",
-    },
-    "animate-14B": {
-        "prompt": "视频中的人在做动作",
-        "video": "",
-        "pose": "",
-        "mask": "",
-    },
-    "s2v-14B": {
-        "prompt":
-            "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's intricate details and the refreshing atmosphere of the seaside.",
-        "image":
-            "examples/i2v_input.JPG",
-        "audio":
-            "examples/talk.wav",
-        "tts_prompt_audio":
-            "examples/zero_shot_prompt.wav",
-        "tts_prompt_text":
-            "希望你以后能够做的比我还好呦。",
-        "tts_text":
-            "收到好友从远方寄来的生日礼物，那份意外的惊喜与深深的祝福让我心中充满了甜蜜的快乐，笑容如花儿般绽放。"
-    },
-}
+experimental_config = torch_npu.profiler._ExperimentalConfig(
+    export_type=[
+        torch_npu.profiler.ExportType.Text
+        ],
+    profiler_level=torch_npu.profiler.ProfilerLevel.Level0,
+    mstx=False,    # 原参数名称msprof_tx改名为mstx，新版本依旧兼容原参数名
+    aic_metrics=torch_npu.profiler.AiCMetrics.AiCoreNone,
+    l2_cache=False,
+    op_attr=False,
+    data_simplification=False,
+    record_op_args=False,
+    gc_detect_threshold=None,
+    host_sys=[
+        torch_npu.profiler.HostSystem.CPU,
+        torch_npu.profiler.HostSystem.MEM],
+    sys_io=False,
+    sys_interconnection=False
+)
 
-
-def _validate_args(args):
-    # Basic check
-    assert args.ckpt_dir is not None, "Please specify the checkpoint directory."
-    assert args.task in WAN_CONFIGS, f"Unsupport task: {args.task}"
-    assert args.task in EXAMPLE_PROMPT, f"Unsupport task: {args.task}"
-
-    if args.prompt is None:
-        args.prompt = EXAMPLE_PROMPT[args.task]["prompt"]
-    if args.image is None and "image" in EXAMPLE_PROMPT[args.task]:
-        args.image = EXAMPLE_PROMPT[args.task]["image"]
-    if args.audio is None and args.enable_tts is False and "audio" in EXAMPLE_PROMPT[args.task]:
-        args.audio = EXAMPLE_PROMPT[args.task]["audio"]
-    if (args.tts_prompt_audio is None or args.tts_text is None) and args.enable_tts is True and "audio" in EXAMPLE_PROMPT[args.task]:
-        args.tts_prompt_audio = EXAMPLE_PROMPT[args.task]["tts_prompt_audio"]
-        args.tts_prompt_text = EXAMPLE_PROMPT[args.task]["tts_prompt_text"]
-        args.tts_text = EXAMPLE_PROMPT[args.task]["tts_text"]
-
-    if args.task == "i2v-A14B":
-        assert args.image is not None, "Please specify the image path for i2v."
-
-    cfg = WAN_CONFIGS[args.task]
-
-    if args.sample_steps is None:
-        args.sample_steps = cfg.sample_steps
-
-    if args.sample_shift is None:
-        args.sample_shift = cfg.sample_shift
-
-    if args.sample_guide_scale is None:
-        args.sample_guide_scale = cfg.sample_guide_scale
-
-    if args.frame_num is None:
-        args.frame_num = cfg.frame_num
-
-    args.base_seed = args.base_seed if args.base_seed >= 0 else random.randint(
-        0, sys.maxsize)
-    # Size check
-    if not 's2v' in args.task:
-        assert args.size in SUPPORTED_SIZES[
-            args.
-            task], f"Unsupport size {args.size} for task {args.task}, supported sizes are: {', '.join(SUPPORTED_SIZES[args.task])}"
-
-
-def _parse_args():
-    parser = argparse.ArgumentParser(
-        description="Generate a image or video from a text prompt or image using Wan"
-    )
-    parser.add_argument(
-        "--task",
-        type=str,
-        default="t2v-A14B",
-        choices=list(WAN_CONFIGS.keys()),
-        help="The task to run.")
-    parser.add_argument(
-        "--size",
-        type=str,
-        default="1280*720",
-        choices=list(SIZE_CONFIGS.keys()),
-        help="The area (width*height) of the generated video. For the I2V task, the aspect ratio of the output video will follow that of the input image."
-    )
-    parser.add_argument(
-        "--frame_num",
-        type=int,
-        default=None,
-        help="How many frames of video are generated. The number should be 4n+1"
-    )
-    parser.add_argument(
-        "--ckpt_dir",
-        type=str,
-        default=None,
-        help="The path to the checkpoint directory.")
-    parser.add_argument(
-        "--offload_model",
-        type=str2bool,
-        default=None,
-        help="Whether to offload the model to CPU after each model forward, reducing GPU memory usage."
-    )
-    parser.add_argument(
-        "--ulysses_size",
-        type=int,
-        default=1,
-        help="The size of the ulysses parallelism in DiT.")
-    parser.add_argument(
-        "--t5_fsdp",
-        action="store_true",
-        default=False,
-        help="Whether to use FSDP for T5.")
-    parser.add_argument(
-        "--t5_cpu",
-        action="store_true",
-        default=False,
-        help="Whether to place T5 model on CPU.")
-    parser.add_argument(
-        "--dit_fsdp",
-        action="store_true",
-        default=False,
-        help="Whether to use FSDP for DiT.")
-    parser.add_argument(
-        "--save_file",
-        type=str,
-        default=None,
-        help="The file to save the generated video to.")
-    parser.add_argument(
-        "--prompt",
-        type=str,
-        default=None,
-        help="The prompt to generate the video from.")
-    parser.add_argument(
-        "--use_prompt_extend",
-        action="store_true",
-        default=False,
-        help="Whether to use prompt extend.")
-    parser.add_argument(
-        "--prompt_extend_method",
-        type=str,
-        default="local_qwen",
-        choices=["dashscope", "local_qwen"],
-        help="The prompt extend method to use.")
-    parser.add_argument(
-        "--prompt_extend_model",
-        type=str,
-        default=None,
-        help="The prompt extend model to use.")
-    parser.add_argument(
-        "--prompt_extend_target_lang",
-        type=str,
-        default="zh",
-        choices=["zh", "en"],
-        help="The target language of prompt extend.")
-    parser.add_argument(
-        "--base_seed",
-        type=int,
-        default=-1,
-        help="The seed to use for generating the video.")
-    parser.add_argument(
-        "--image",
-        type=str,
-        default=None,
-        help="The image to generate the video from.")
-    parser.add_argument(
-        "--sample_solver",
-        type=str,
-        default='unipc',
-        choices=['unipc', 'dpm++'],
-        help="The solver used to sample.")
-    parser.add_argument(
-        "--sample_steps", type=int, default=None, help="The sampling steps.")
-    parser.add_argument(
-        "--sample_shift",
-        type=float,
-        default=None,
-        help="Sampling shift factor for flow matching schedulers.")
-    parser.add_argument(
-        "--sample_guide_scale",
-        type=float,
-        default=None,
-        help="Classifier free guidance scale.")
-    parser.add_argument(
-        "--convert_model_dtype",
-        action="store_true",
-        default=False,
-        help="Whether to convert model paramerters dtype.")
-
-    # animate
-    parser.add_argument(
-        "--src_root_path",
-        type=str,
-        default=None,
-        help="The file of the process output path. Default None.")
-    parser.add_argument(
-        "--refert_num",
-        type=int,
-        default=77,
-        help="How many frames used for temporal guidance. Recommended to be 1 or 5."
-    )
-    parser.add_argument(
-        "--replace_flag",
-        action="store_true",
-        default=False,
-        help="Whether to use replace.")
-    parser.add_argument(
-        "--use_relighting_lora",
-        action="store_true",
-        default=False,
-        help="Whether to use relighting lora.")
-    
-    # following args only works for s2v
-    parser.add_argument(
-        "--num_clip",
-        type=int,
-        default=None,
-        help="Number of video clips to generate, the whole video will not exceed the length of audio."
-    )
-    parser.add_argument(
-        "--audio",
-        type=str,
-        default=None,
-        help="Path to the audio file, e.g. wav, mp3")
-    parser.add_argument(
-        "--enable_tts",
-        action="store_true",
-        default=False,
-        help="Use CosyVoice to synthesis audio")
-    parser.add_argument(
-        "--tts_prompt_audio",
-        type=str,
-        default=None,
-        help="Path to the tts prompt audio file, e.g. wav, mp3. Must be greater than 16khz, and between 5s to 15s.")
-    parser.add_argument(
-        "--tts_prompt_text",
-        type=str,
-        default=None,
-        help="Content to the tts prompt audio. If provided, must exactly match tts_prompt_audio")
-    parser.add_argument(
-        "--tts_text",
-        type=str,
-        default=None,
-        help="Text wish to synthesize")
-    parser.add_argument(
-        "--pose_video",
-        type=str,
-        default=None,
-        help="Provide Dw-pose sequence to do Pose Driven")
-    parser.add_argument(
-        "--start_from_ref",
-        action="store_true",
-        default=False,
-        help="whether set the reference image as the starting point for generation"
-    )
-    parser.add_argument(
-        "--infer_frames",
-        type=int,
-        default=80,
-        help="Number of frames per clip, 48 or 80 or others (must be multiple of 4) for 14B s2v"
-    )
-    args = parser.parse_args()
-    _validate_args(args)
-
-    return args
-
+prof = torch_npu.profiler.profile(
+    activities=[
+        torch_npu.profiler.ProfilerActivity.CPU,
+        torch_npu.profiler.ProfilerActivity.NPU
+        ],
+    schedule=torch_npu.profiler.schedule(wait=0, warmup=0, active=1, repeat=1, skip_first=0),
+    on_trace_ready=torch_npu.profiler.tensorboard_trace_handler("./result"),
+    record_shapes=False,
+    profile_memory=False,
+    with_stack=False,
+    with_modules=False,
+    with_flops=False,
+    experimental_config=experimental_config)
 
 def _init_logging(rank):
     # logging
@@ -374,7 +129,12 @@ def generate(args):
         dist.broadcast_object_list(base_seed, src=0)
         args.base_seed = base_seed[0]
 
-    logging.info(f"Input prompt: {args.prompt}")
+    if args.prompt_file is not None:
+        with open(args.prompt_file, "r") as f:
+            args.prompt = f.read().strip()
+        logging.info(f"Loaded prompt from {args.prompt_file}")
+    else:
+        logging.info(f"Using prompt from args: {args.prompt}")
     img = None
     if args.image is not None:
         img = Image.open(args.image).convert("RGB")
@@ -519,9 +279,13 @@ def generate(args):
         )
     else:
         logging.info("Creating WanI2V pipeline.")
+        if args.prof:
+            logging.info("Start profiling ...")
+            prof.start()
         wan_i2v = wan.WanI2V(
             config=cfg,
             checkpoint_dir=args.ckpt_dir,
+            lora_weight_dir=args.lora_weight_dir,
             device_id=device,
             rank=rank,
             t5_fsdp=args.t5_fsdp,
@@ -542,7 +306,9 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
-
+        if args.prof:
+            logging.info("Stop profiling.")
+            prof.stop()
     if rank == 0:
         if args.save_file is None:
             formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")

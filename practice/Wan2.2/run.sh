@@ -2,8 +2,8 @@ rm -rf ~/.cache/atc/
 rm -rf ~/.cache/ops_cache/
 rm -rf ~/.cache/Python-SDK/
 
-export ASCEND_LAUNCH_BLOCKING=1 # comment to accelerate
-export ASCEND_RT_VISIBLE_DEVICES=4,5,6,7
+# export ASCEND_LAUNCH_BLOCKING=1 # comment to accelerate
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
@@ -31,15 +31,16 @@ OUTPUT_FILE="test.mp4"
 # --prompt "The cat down its head and catches a golden fish from the water."
 
 
-torchrun --nproc_per_node=4 generate.py \
+torchrun --nproc_per_node=$DEVICE_COUNT generate.py \
 --task i2v-A14B \
 --size 1280*720 \
+--frame_num 241 \
 --ckpt_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-I2V-A14B \
---lora_weight_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-I2V-A14B/lora_weight \
+--lora_weight_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-I2V-A14B/loras/nsfw \
 --image examples/girl.png \
 --dit_fsdp \
 --t5_fsdp \
---ulysses_size 4 \
+--ulysses_size $DEVICE_COUNT \
 --offload_model True \
 --save_file $OUTPUT_FILE \
 --prompt_file ./prompt.txt

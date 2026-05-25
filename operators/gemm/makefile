@@ -23,8 +23,8 @@ INC_DIR := -I$(RT_INC) -I csrc/kernels -I $(RT_INC) $(PY_INC) $(NPU_INC) $(PY_DE
 
 # 目标文件定义
 TARGET      := build/libdevice.so
-DEVICE      := build/libmatmul_kernel.so
-
+DEVICE      := build/libgemm_kernel.so
+	
 # FLAGS
 CXXFLAGS    := -O2 -fPIC -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=0 --shared -L. -Wl,-rpath,'$$ORIGIN'
 BISHENGFLAGS := -O2 -fPIC --npu-arch=dav-2201 --cce-auto-sync --shared
@@ -32,7 +32,7 @@ BISHENGFLAGS := -O2 -fPIC --npu-arch=dav-2201 --cce-auto-sync --shared
 # 5. 构建规则
 all: $(TARGET)
 
-$(TARGET):
+$(TARGET):clean
 	@echo "include flags: $(INC_DIR)"
 	@echo "library dir flags: $(LIBS_DIR)"
 	@echo "library flags: $(LIBS)"
@@ -40,25 +40,27 @@ $(TARGET):
 	mkdir -p build
 	@echo "正在编译 ASC 算子..."
 	bisheng $(BISHENGFLAGS) \
-	csrc/kernels/matmul.asc \
+	csrc/kernels/gemm.asc \
 	-o $(DEVICE)
 	
 	@echo "正在编译 C++ 接口并链接生成最终库..."
 	# 这里将 .asc 编译出的中间产物与 .cpp 一起链接成最终的 .so
 	g++ $(CXXFLAGS) \
-	csrc/ascend_interface.cpp csrc/kernels/matmul_torch.cpp $(DEVICE) \
+	csrc/ascend_interface.cpp csrc/kernels/gemm_torch.cpp $(DEVICE) \
 	$(INC_DIR) \
 	$(LIBS_DIR) \
 	$(LIBS) \
 	-o $(TARGET)
 	
 	cp build/libdevice.so .
-	cp build/libadd_kernel.so .
+	cp build/libgemm_kernel.so .
 
+	python run_ops.py
+	
 clean:
 	rm -rf build
 	rm -f libdevice.so
-	rm -f libadd_kernel.so
+	rm -f libgemm_kernel.so
 	rm -f $(TARGET)
 
 .PHONY: all clean

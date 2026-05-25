@@ -20,8 +20,7 @@ from wan.distributed.util import init_distributed_group
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
 from wan.utils.utils import merge_video_audio, save_video
 from wan.utils.args import _parse_args
-
-
+from wan.devhook.hook import patched_to
 
 torch.npu.config.allow_internal_format = False
 torch.npu.set_compile_mode(jit_compile=False)
@@ -282,6 +281,12 @@ def generate(args):
         if args.prof:
             logging.info("Start profiling ...")
             prof.start()
+        if args.devhook:
+            logging.info("Devhook is enabled, monkey patching torch.Tensor.to ...")
+            torch.Tensor.to = patched_to
+        if args.compile:
+            logging.info("compile is enabled, offload is automaically closed")
+            args.offload_model = False
         wan_i2v = wan.WanI2V(
             config=cfg,
             checkpoint_dir=args.ckpt_dir,
@@ -294,6 +299,10 @@ def generate(args):
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
         )
+        if args.hetero_backend:
+            logging.info(f"Enable hetero_backend!\nstarting compile...")
+            from wan.devhook.hetero_backend import my_hetero_backend
+            torch.compile(wan_i2v, backend=my_hetero_backend)
         logging.info("Generating video ...")
         video = wan_i2v.generate(
             args.prompt,

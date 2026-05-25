@@ -39,11 +39,14 @@ RTOL = 1e-03
 ATOL = 1e-03
 
 # 2. 准备矩阵数据 (M, K) * (K, N)
-M, K, N = 512, 512, 512  # 建议从 16 的倍数开始测试，便于硬件对齐
+M, K, N = 64, 64, 64  # 建议从 16 的倍数开始测试，便于硬件对齐
 print(f"Creating matrices: ({M}x{K}) * ({K}x{N})...")
 
-a_cpu = torch.randn(M, K, dtype=torch.float32)
-b_cpu = torch.randn(K, N, dtype=torch.float32)
+# a_cpu = torch.randn(M, K, dtype=torch.bfloat16)
+# b_cpu = torch.randn(K, N, dtype=torch.bfloat16)
+
+a_cpu = torch.ones(M, K, dtype=torch.bfloat16)
+b_cpu = torch.ones(K, N, dtype=torch.bfloat16)
 
 a_npu = a_cpu.npu()
 b_npu = b_cpu.npu()
@@ -52,17 +55,17 @@ b_npu = b_cpu.npu()
 print("-" * 30)
 try:
     # 运行 NPU 自定义算子
-    # 注意：根据你的 C++ 定义，调用路径为 torch.ops.ascendc_ops.ascend_matmul
+    # 注意：根据你的 C++ 定义，调用路径为 torch.ops.ascendc_ops.ascend_gemm
     out_npu, time_npu = benchmark(
-        torch.ops.ascendc_ops.ascend_matmul, "NPU Matmul", iterations=100
+        torch.ops.ascendc_ops.ascend_gemm, "NPU GEMM", iterations=100
     )
 
     # 4. CPU 参考值 (标准矩阵乘)
     start_cpu = time.perf_counter()
-    out_cpu = torch.matmul(a_cpu, b_cpu)
+    out_cpu = torch.matmul(a_cpu, b_cpu).to(out_npu.dtype) # 保持结果的类型一致。
     end_cpu = time.perf_counter()
     time_cpu = (end_cpu - start_cpu) * 1000
-    print(f"[CPU Matmul] Time: {time_cpu:.4f} ms")
+    print(f"[CPU GEMM] Time: {time_cpu:.4f} ms")
 
     # 5. 结果校验
     check_result(out_npu, out_cpu, "NPU vs CPU")

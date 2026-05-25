@@ -92,10 +92,25 @@ def _parse_args():
         description="Generate a image or video from a text prompt or image using Wan"
     )
     parser.add_argument(
+        "--compile",
+        action="store_true",
+        default=False,
+        help="Whether to enable compile.")
+    parser.add_argument(
+        "--hetero_backend",
+        action="store_true",
+        default=False,
+        help="Whether to enable profiling.")
+    parser.add_argument(
         "--prof",
         action="store_true",
         default=False,
         help="Whether to enable profiling.")
+    parser.add_argument(
+        "--devhook",
+        action="store_true",
+        default=False,
+        help="Whether to enable devhook.")
     parser.add_argument(
         "--task",
         type=str,

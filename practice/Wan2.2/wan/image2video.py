@@ -96,6 +96,7 @@ class WanI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        compile=False,
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -122,6 +123,8 @@ class WanI2V:
             convert_model_dtype (`bool`, *optional*, defaults to False):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
+            compile (`bool`):
+                Enable Graph compile
         """
         self.device = torch.device(f"cuda:{device_id}")
         self.config = config
@@ -190,6 +193,34 @@ class WanI2V:
             self.sp_size = 1
 
         self.sample_neg_prompt = config.sample_neg_prompt
+        
+        if compile:
+            # ==================== 新增：使能 Ascend GE 静态编译 ====================
+            logging.info(f"[rank:{self.rank}] 使能 torch.compile 后端 [npu] (Ascend GE)...")
+            import torch_npu  # 确保引入以注册 npu 后端
+            
+            # 配置高级 GE 编译选项
+            ge_options = {
+                "ge.exec.enableFreeze": "1",          # 开启图静态冻结
+                "ge.exec.precision_mode": "must_keep_origin_dtype", # 保持 BF16 精度
+            }
+            
+            # 对两个 DiT 模型分别进行静态编译 (dynamic=False)
+            self.low_noise_model = torch.compile(
+                self.low_noise_model,
+                backend="npu",
+                options=ge_options,
+                fullgraph=False,
+                dynamic=False
+            )
+            self.high_noise_model = torch.compile(
+                self.high_noise_model,
+                backend="npu",
+                options=ge_options,
+                fullgraph=False,
+                dynamic=False
+            )
+            # ====================================================================
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
                          convert_model_dtype):

@@ -45,6 +45,7 @@ class WanTI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        is_compile=False,
     ):
         r"""
         Initializes the Wan text-to-video generation model components.
@@ -101,12 +102,27 @@ class WanTI2V:
 
         logging.info(f"Creating WanModel from {checkpoint_dir}")
         self.model = WanModel.from_pretrained(checkpoint_dir)
+        
         self.model = self._configure_model(
             model=self.model,
             use_sp=use_sp,
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype)
+        
+        if is_compile:
+            # ==================== 新增：使能 Ascend GE 静态编译 ====================
+            logging.info(f"[rank:{self.rank}] 使能 torch.compile 后端 [npu] (Ascend GE)...")
+            import torch_npu  # 确保引入以注册 npu 后端
+            import torchair
+            
+            # 配置高级 GE 编译选项
+            torch_compile_config = torchair.CompilerConfig()
+            npu_backend = torchair.get_npu_backend(compiler_config=torch_compile_config)
+            
+            # 对两个 DiT 模型分别进行静态编译 (dynamic=False)
+            self.model = torch.compile(self.model, backend=npu_backend)
+            # ====================================================================
 
         if use_sp:
             self.sp_size = get_world_size()

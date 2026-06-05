@@ -38,6 +38,25 @@
 
 `python setup.py install --no-cache-dir`
 
+### compile mode, enable GE
+
+`git clone https://gitcode.com/ascend/torchair.git`
+
+`cd torchair && git submodule update --init --recursive`
+
+`bash ./configure`
+
+跳过输入ASCEND_SDK_PATH，因为不需要使用CPU模拟、
+
+```bash
+mkdir build
+cd build
+cmake ..
+make torchair -j8
+```
+
+`make install_torchair`
+
 ## run
 
 ### download model parameters

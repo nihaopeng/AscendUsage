@@ -9,17 +9,29 @@ from collections import namedtuple
 original_to = torch.Tensor.to
 
 class TransferTracker:
-    def __init__(self, filename="transfer_log.jsonl"):
+    def __init__(self, filename="transfer_log.jsonl", append=False):
         self.filename = filename
         self.start_time = time.time()
         self.counter = 0
-        # 如果文件已存在则删除，防止旧数据干扰
-        if os.path.exists(self.filename):
-            os.remove(self.filename)
-            # create empty file
-        open(self.filename, 'w').close()
+        self._initialized = False
+        self.append = append
+
+    def _ensure_file_ready(self):
+        # 只有在第一次真正要写日志时，才去处理文件
+        if not self._initialized:
+            if not self.append and os.path.exists(self.filename):
+                try:
+                    os.remove(self.filename)
+                except OSError:
+                    pass # 防止多进程并发删除报错
+            # 确保文件存在
+            with open(self.filename, 'a') as f:
+                pass
+            self._initialized = True
 
     def log_advanced(self, name, direction, old_mb, new_mb, dtype_info):
+        self._ensure_file_ready()
+        
         event = {
             "time": round(time.time() - self.start_time, 4),
             "name": name,

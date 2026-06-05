@@ -1,0 +1,280 @@
+{
+    "type": "float-area",
+    "_widgets": [
+        [
+            {
+                "widget": {
+                    "constructionOptions": {
+                        "factoryId": "code-editor-opener",
+                        "options": {
+                            "kind": "navigatable",
+                            "uri": "generate.py",
+                            "floatAreaId": "bb276130-f95d-4a29-8932-9a58e737466e"
+                        }
+                    },
+                    "innerWidgetState": {
+                        "cursorState": [
+                            {
+                                "inSelectionMode": false,
+                                "selectionStart": {
+                                    "lineNumber": 192,
+                                    "column": 25
+                                },
+                                "position": {
+                                    "lineNumber": 192,
+                                    "column": 25
+                                }
+                            }
+                        ],
+                        "viewState": {
+                            "scrollLeft": 0,
+                            "firstPosition": {
+                                "lineNumber": 179,
+                                "column": 1
+                            },
+                            "firstPositionDeltaTop": -4
+                        },
+                        "contributionsState": {
+                            "editor.contrib.folding": {
+                                "lineCount": 359,
+                                "provider": "syntax",
+                                "foldedImports": false
+                            },
+                            "editor.contrib.wordHighlighter": false
+                        }
+                    }
+                },
+                "width": 600,
+                "height": 450,
+                "spacing": 0
+            }
+        ],
+        [
+            {
+                "widget": {
+                    "constructionOptions": {
+                        "factoryId": "code-editor-opener",
+                        "options": {
+                            "kind": "navigatable",
+                            "uri": "wan\\modules\\t5.py",
+                            "floatAreaId": "bb276130-f95d-4a29-8932-9a58e737466e"
+                        }
+                    }
+                },
+                "width": 600,
+                "height": 450,
+                "spacing": 0
+            }
+        ]
+    ],
+    "_widths": [
+        600,
+        600
+    ],
+    "_modelData": {
+        "connections": [
+            {
+                "startWord": {
+                    "uri": "generate.py",
+                    "lineNumber": 105,
+                    "startColumn": 31,
+                    "endLineNumber": 105,
+                    "endColumn": 54,
+                    "word": "DashScopePromptExpander",
+                    "x": 94,
+                    "y": 62,
+                    "hide": true,
+                    "height": 1,
+                    "width": 1
+                },
+                "endWord": {
+                    "uri": "wan\\utils\\prompt_extend.py",
+                    "lineNumber": 117,
+                    "startColumn": 7,
+                    "endLineNumber": 117,
+                    "endColumn": 30,
+                    "word": "",
+                    "x": 796,
+                    "y": 252,
+                    "hide": false,
+                    "height": 19,
+                    "width": 177
+                },
+                "id": "0130169e-e9da-4534-a5e5-6a8f260e4874",
+                "startAnchor": {
+                    "x": 95,
+                    "y": 62.62594936708861
+                },
+                "endAnchor": {
+                    "x": 846.786432160804,
+                    "y": 252
+                },
+                "startControl": {
+                    "x": 126.0306471957867,
+                    "y": 62.62594936708861
+                },
+                "endControl": {
+                    "x": 846.786432160804,
+                    "y": 241.25220146968718
+                },
+                "arrow": {
+                    "angle": 1.5707963267948966,
+                    "x": 846.786432160804,
+                    "y": 240
+                }
+            },
+            {
+                "startWord": {
+                    "uri": "generate.py",
+                    "lineNumber": 191,
+                    "startColumn": 25,
+                    "endLineNumber": 191,
+                    "endColumn": 33,
+                    "word": "generate",
+                    "x": 279,
+                    "y": 286,
+                    "hide": false,
+                    "height": 19,
+                    "width": 61
+                },
+                "endWord": {
+                    "uri": "wan\\text2video.py",
+                    "lineNumber": 203,
+                    "startColumn": 9,
+                    "endLineNumber": 203,
+                    "endColumn": 17,
+                    "word": "",
+                    "x": 811.9999890177771,
+                    "y": 274.99999729388935,
+                    "hide": false,
+                    "height": 19,
+                    "width": 61
+                },
+                "id": "df3440c9-4dbd-4675-8458-1dbc39329c4a",
+                "startAnchor": {
+                    "x": 340,
+                    "y": 294.87054392223416
+                },
+                "endAnchor": {
+                    "x": 811.9999890177771,
+                    "y": 285.1294533716552
+                },
+                "startControl": {
+                    "x": 371.9931874067243,
+                    "y": 294.87054392223416
+                },
+                "endControl": {
+                    "x": 768.0093563335312,
+                    "y": 285.1294533716552
+                },
+                "arrow": {
+                    "angle": 0,
+                    "x": 799.9999890177771,
+                    "y": 285.1294533716552
+                }
+            },
+            {
+                "startWord": {
+                    "uri": "wan\\text2video.py",
+                    "lineNumber": 268,
+                    "startColumn": 18,
+                    "endLineNumber": 268,
+                    "endColumn": 30,
+                    "word": "text_encoder",
+                    "x": 749.9999890177771,
+                    "y": 479.99999729388935,
+                    "hide": true,
+                    "height": 1,
+                    "width": 1
+                },
+                "endWord": {
+                    "uri": "wan\\text2video.py",
+                    "lineNumber": 86,
+                    "startColumn": 14,
+                    "endLineNumber": 86,
+                    "endColumn": 26,
+                    "word": "",
+                    "x": 749.9999890177771,
+                    "y": 61.99999729388936,
+                    "hide": true,
+                    "height": 1,
+                    "width": 1
+                },
+                "id": "c75109bc-c4d4-4167-88c2-a1fc9f172297",
+                "startAnchor": {
+                    "x": 750.4999890177771,
+                    "y": 479.99999729388935
+                },
+                "endAnchor": {
+                    "x": 750.4999890177771,
+                    "y": 62.99999729388936
+                },
+                "startControl": {
+                    "x": 750.4999890177771,
+                    "y": 447.99999729388935
+                },
+                "endControl": {
+                    "x": 750.4999890177771,
+                    "y": 106.99999729388935
+                },
+                "arrow": {
+                    "angle": -1.5707963267948966,
+                    "x": 750.4999890177771,
+                    "y": 74.99999729388935
+                }
+            },
+            {
+                "startWord": {
+                    "uri": "wan\\text2video.py",
+                    "lineNumber": 86,
+                    "startColumn": 29,
+                    "endLineNumber": 86,
+                    "endColumn": 43,
+                    "word": "T5EncoderModel",
+                    "x": 749.9999890177771,
+                    "y": 61.99999729388936,
+                    "hide": true,
+                    "height": 1,
+                    "width": 1
+                },
+                "endWord": {
+                    "uri": "wan\\modules\\t5.py",
+                    "lineNumber": 472,
+                    "startColumn": 7,
+                    "endLineNumber": 472,
+                    "endColumn": 21,
+                    "word": "",
+                    "x": 795.9999890177771,
+                    "y": 251.99999729388935,
+                    "hide": false,
+                    "height": 19,
+                    "width": 108
+                },
+                "id": "671d4e1d-3ca4-4ca0-9b56-3cc2eb2054ec",
+                "startAnchor": {
+                    "x": 750.7499890177771,
+                    "y": 62.99999729388936
+                },
+                "endAnchor": {
+                    "x": 845.2499890177771,
+                    "y": 251.99999729388935
+                },
+                "startControl": {
+                    "x": 750.7499890177771,
+                    "y": 91.62166740588667
+                },
+                "endControl": {
+                    "x": 845.2499890177771,
+                    "y": 212.64520088989306
+                },
+                "arrow": {
+                    "angle": 1.5707963267948966,
+                    "x": 845.2499890177771,
+                    "y": 239.99999729388935
+                }
+            }
+        ],
+        "annotations": [],
+        "highlights": []
+    }
+}

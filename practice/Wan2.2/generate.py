@@ -163,6 +163,16 @@ def generate(args):
         args.prompt = input_prompt[0]
         logging.info(f"Extended prompt: {args.prompt}")
 
+    if args.prof:
+        logging.info("Start profiling ...")
+        prof.start()
+    if args.devhook:
+        logging.info("Devhook is enabled, monkey patching torch.Tensor.to ...")
+        torch.Tensor.to = patched_to
+    if args.is_compile:
+        logging.info("compile is enabled, offload is automaically closed")
+        args.offload_model = False
+            
     if "t2v" in args.task:
         logging.info("Creating WanT2V pipeline.")
         wan_t2v = wan.WanT2V(
@@ -200,6 +210,7 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            is_compile=args.is_compile,
         )
 
         logging.info(f"Generating video ...")
@@ -278,15 +289,6 @@ def generate(args):
         )
     else:
         logging.info("Creating WanI2V pipeline.")
-        if args.prof:
-            logging.info("Start profiling ...")
-            prof.start()
-        if args.devhook:
-            logging.info("Devhook is enabled, monkey patching torch.Tensor.to ...")
-            torch.Tensor.to = patched_to
-        if args.compile:
-            logging.info("compile is enabled, offload is automaically closed")
-            args.offload_model = False
         wan_i2v = wan.WanI2V(
             config=cfg,
             checkpoint_dir=args.ckpt_dir,
@@ -298,11 +300,12 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            is_compile=args.is_compile,
         )
-        if args.hetero_backend:
-            logging.info(f"Enable hetero_backend!\nstarting compile...")
-            from wan.devhook.hetero_backend import my_hetero_backend
-            torch.compile(wan_i2v, backend=my_hetero_backend)
+        # if args.hetero_backend:
+        #     logging.info(f"Enable hetero_backend!\nstarting compile...")
+        #     from wan.devhook.hetero_backend import my_hetero_backend
+        #     torch.compile(wan_i2v, backend=my_hetero_backend)
         logging.info("Generating video ...")
         video = wan_i2v.generate(
             args.prompt,
@@ -315,9 +318,10 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
-        if args.prof:
-            logging.info("Stop profiling.")
-            prof.stop()
+        
+    if args.prof:
+        logging.info("Stop profiling.")
+        prof.stop()
     if rank == 0:
         if args.save_file is None:
             formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -15,3 +15,5 @@ attrs>=26.1.0
 scipy>=1.15.3
 einops>=0.8.2
 peft>=0.19.1
+setuptools<=81
+protobuf>=7.35

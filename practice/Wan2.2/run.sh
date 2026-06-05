@@ -3,7 +3,8 @@ rm -rf ~/.cache/ops_cache/
 rm -rf ~/.cache/Python-SDK/
 
 # export ASCEND_LAUNCH_BLOCKING=1 # comment to accelerate
-export ASCEND_RT_VISIBLE_DEVICES=4,5,6,7
+# export ASCEND_RT_VISIBLE_DEVICES=4,5,6,7
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
 
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
@@ -16,21 +17,32 @@ else
 fi
 OUTPUT_FILE="test.mp4"
 
-torchrun --nproc_per_node=$DEVICE_COUNT generate.py \
---task i2v-A14B \
---size 832*480 \
---frame_num 2 \
---ckpt_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-I2V-A14B \
+# single GPU, 5B model, compile enable
+python generate.py \
+--task ti2v-5B \
+--size 1280*704 \
+--frame_num 241 \
+--ckpt_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-TI2V-5B \
 --image examples/i2v_input.JPG \
---dit_fsdp \
---t5_fsdp \
---ulysses_size $DEVICE_COUNT \
---offload_model True \
 --save_file $OUTPUT_FILE \
 --prompt "The cat down its head and catches a golden fish from the water." \
---hetero_backend \
---prof \
---compile \
+--is_compile \
+# --prof \
+
+# torchrun --nproc_per_node=$DEVICE_COUNT generate.py \
+# --task i2v-A14B \
+# --size 832*480 \
+# --frame_num 241 \
+# --ckpt_dir /mnt/nvme1p1/pengyt/wan2.2/Wan2.2-I2V-A14B \
+# --image examples/i2v_input.JPG \
+# --dit_fsdp \
+# --t5_fsdp \
+# --ulysses_size $DEVICE_COUNT \
+# --offload_model True \
+# --save_file $OUTPUT_FILE \
+# --prompt "The cat down its head and catches a golden fish from the water." \
+# # --is_compile \
+# # --prof \
 
 # torchrun --nproc_per_node=$DEVICE_COUNT generate.py \
 # --task i2v-A14B \

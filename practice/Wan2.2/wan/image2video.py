@@ -96,7 +96,7 @@ class WanI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
-        compile=False,
+        is_compile=False,
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -123,7 +123,7 @@ class WanI2V:
             convert_model_dtype (`bool`, *optional*, defaults to False):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
-            compile (`bool`):
+            is_compile (`bool`):
                 Enable Graph compile
         """
         self.device = torch.device(f"cuda:{device_id}")
@@ -139,7 +139,7 @@ class WanI2V:
         if t5_fsdp or dit_fsdp or use_sp:
             self.init_on_cpu = False
 
-        shard_fn = partial(shard_model, device_id=device_id)
+        shard_fn = partial(shard_model, device_id=device_id, is_compile = is_compile)
         self.text_encoder = T5EncoderModel(
             text_len=config.text_len,
             dtype=config.t5_dtype,
@@ -158,12 +158,37 @@ class WanI2V:
         logging.info(f"Creating WanModel from {checkpoint_dir}")
         self.low_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.low_noise_checkpoint)
-        logging.info(f"[rank:{self.rank}] Configuring lora low noise model...")
-        self.low_noise_model = apply_lora(
-            model=self.low_noise_model,
-            lora_path=os.path.join(lora_weight_dir, config.low_noise_weight),
-            compute_device=f"npu:{device_id}"
-        )
+        self.high_noise_model = WanModel.from_pretrained(
+            checkpoint_dir, subfolder=config.high_noise_checkpoint)
+        
+        if is_compile:
+            # ==================== 新增：使能 Ascend GE 静态编译 ====================
+            logging.info(f"[rank:{self.rank}] 使能 torch.compile 后端 [npu] (Ascend GE)...")
+            import torch_npu  # 确保引入以注册 npu 后端
+            import torchair
+            
+            # 配置高级 GE 编译选项
+            torch_compile_config = torchair.CompilerConfig()
+            npu_backend = torchair.get_npu_backend(compiler_config=torch_compile_config)
+            
+            # 对两个 DiT 模型分别进行静态编译 (dynamic=False)
+            self.low_noise_model = torch.compile(self.low_noise_model, backend=npu_backend)
+            self.high_noise_model = torch.compile(self.high_noise_model, backend=npu_backend)
+            # ====================================================================
+        
+        if lora_weight_dir:
+            logging.info(f"[rank:{self.rank}] Configuring lora low noise model...")
+            self.low_noise_model = apply_lora(
+                model=self.low_noise_model,
+                lora_path=os.path.join(lora_weight_dir, config.low_noise_weight),
+                compute_device=f"npu:{device_id}"
+            )
+            logging.info(f"[rank:{self.rank}] Configuring lora high noise model...")
+            self.high_noise_model = apply_lora(
+                model=self.high_noise_model,
+                lora_path=os.path.join(lora_weight_dir, config.high_noise_weight),
+                compute_device=f"npu:{device_id}"
+            )
         logging.info(f"[rank:{self.rank}] Configuring low noise model...")
         self.low_noise_model = self._configure_model(
             model=self.low_noise_model,
@@ -171,15 +196,7 @@ class WanI2V:
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype)
-
-        self.high_noise_model = WanModel.from_pretrained(
-            checkpoint_dir, subfolder=config.high_noise_checkpoint)
-        logging.info(f"[rank:{self.rank}] Configuring lora high noise model...")
-        self.high_noise_model = apply_lora(
-            model=self.high_noise_model,
-            lora_path=os.path.join(lora_weight_dir, config.high_noise_weight),
-            compute_device=f"npu:{device_id}"
-        )
+        
         logging.info(f"[rank:{self.rank}] Configuring high noise model...")
         self.high_noise_model = self._configure_model(
             model=self.high_noise_model,
@@ -193,34 +210,6 @@ class WanI2V:
             self.sp_size = 1
 
         self.sample_neg_prompt = config.sample_neg_prompt
-        
-        if compile:
-            # ==================== 新增：使能 Ascend GE 静态编译 ====================
-            logging.info(f"[rank:{self.rank}] 使能 torch.compile 后端 [npu] (Ascend GE)...")
-            import torch_npu  # 确保引入以注册 npu 后端
-            
-            # 配置高级 GE 编译选项
-            ge_options = {
-                "ge.exec.enableFreeze": "1",          # 开启图静态冻结
-                "ge.exec.precision_mode": "must_keep_origin_dtype", # 保持 BF16 精度
-            }
-            
-            # 对两个 DiT 模型分别进行静态编译 (dynamic=False)
-            self.low_noise_model = torch.compile(
-                self.low_noise_model,
-                backend="npu",
-                options=ge_options,
-                fullgraph=False,
-                dynamic=False
-            )
-            self.high_noise_model = torch.compile(
-                self.high_noise_model,
-                backend="npu",
-                options=ge_options,
-                fullgraph=False,
-                dynamic=False
-            )
-            # ====================================================================
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
                          convert_model_dtype):

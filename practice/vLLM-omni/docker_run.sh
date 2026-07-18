@@ -1,0 +1,22 @@
+docker run --rm \
+    --network=host \
+    -e http_proxy=$http_proxy \
+    -e https_proxy=$https_proxy \
+    -e HTTP_PROXY=$HTTP_PROXY \
+    -e HTTPS_PROXY=$HTTPS_PROXY \
+    --name vllm-omni \
+    --shm-size=4g \
+    --device /dev/davinci6 \
+    --device /dev/davinci_manager \
+    --device /dev/devmm_svm \
+    --device /dev/hisi_hdc \
+    -v /usr/local/dcmi:/usr/local/dcmi \
+    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
+    -v /etc/ascend_install.info:/etc/ascend_install.info \
+    -v /home/pengyt/projects/AscendUsage/practice/vLLM-omni:/vLLM_omni \
+    -v ~/.cache:/root/.cache \
+    -p 8091:8091 \
+    -p 59085:59085 \
+    -it vllm-omni:ascend bash

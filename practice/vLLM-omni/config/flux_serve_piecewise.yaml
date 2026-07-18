@@ -1,0 +1,48 @@
+# FLUX deployment on Ascend NPU
+# Enable PIECEWISE compile mode
+async_chunk: false
+stages:
+  - stage_id: 0
+    # diffusion stage
+    stage_type: diffusion
+    # model execution
+    model:
+      dtype: bfloat16
+    # engine config
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 1
+    # torch compile
+    compilation_config:
+      mode: PIECEWISE
+      # enable graph partition compile
+      fullgraph: false
+      # dynamic shapes for diffusion timestep / latent size
+      dynamic: true
+      # recommended warmup shapes
+      compile_sizes:
+        - 512
+        - 768
+        - 1024
+
+platforms:
+  npu:
+    stages:
+      - stage_id: 0
+        # NPU backend
+        device: npu
+        # Ascend runtime
+        additional_config:
+          # torch.compile backend
+          compile_backend: ascend
+          # PIECEWISE compile switch
+          compile_mode: PIECEWISE
+          # allow graph break
+          allow_graph_break: true
+          # cache compiled graph
+          enable_compile_cache: true
+          # cache path
+          compile_cache_dir: /vLLM_omni/cache
+        # memory tuning
+        gpu_memory_utilization: 0.90
+        # disable cuda graph on NPU
+        enforce_eager: false

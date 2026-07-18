@@ -1,0 +1,19 @@
+async_chunk: false
+
+stages:
+  - stage_id: 0
+    stage_type: diffusion
+
+    model:
+      dtype: bfloat16
+
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 1
+
+platforms:
+  npu:
+    stages:
+      - stage_id: 0
+        device: npu
+        gpu_memory_utilization: 0.90
+        enforce_eager: true

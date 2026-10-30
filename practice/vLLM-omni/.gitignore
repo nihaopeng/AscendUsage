@@ -2,3 +2,4 @@ fusion_result.json
 vllm-omni/
 gen_res/
 cache/
+.venv/

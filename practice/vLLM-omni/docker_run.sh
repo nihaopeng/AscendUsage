@@ -17,6 +17,5 @@ docker run --rm \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /home/pengyt/projects/AscendUsage/practice/vLLM-omni:/vLLM_omni \
     -v ~/.cache:/root/.cache \
-    -p 8091:8091 \
     -p 59085:59085 \
     -it vllm-omni:ascend bash
